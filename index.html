@@ -381,35 +381,136 @@
     </footer>
 
     <script>
-        // ⚠️ แก้ตรงนี้! วาง URL ของ Apps Script Web App ที่ลงท้ายด้วย /exec
-        const API_URL = 'PASTE_YOUR_APPS_SCRIPT_EXEC_URL_HERE';
+        // ==================================================================
+        // ตั้งค่าการเชื่อมต่อ Google Apps Script (Google Sheets เป็นฐานข้อมูล)
+        // นำ "Web app URL" ที่ได้จากขั้นตอน Deploy ใน Apps Script
+        // มาวางแทนที่ข้อความด้านล่างนี้ <<== ใส่ตรงนี้จุดเดียว
+        // ==================================================================
+        const API_URL = 'วาง_WEB_APP_URL_ของคุณตรงนี้';
 
-        // ข้อมูลสินค้า - จะถูกดึงมาจาก Google Sheet ผ่าน API_URL ตอนโหลดหน้าเว็บ
-        let products = [];
+        // เรียก Apps Script แบบ GET (ดึงข้อมูล)
+        async function apiGet(action) {
+            const res = await fetch(`${API_URL}?action=${action}`);
+            return res.json();
+        }
+
+        // เรียก Apps Script แบบ POST (เพิ่ม/อนุมัติ/ลบ/ล็อกอิน)
+        // ใช้ Content-Type: text/plain เพื่อเลี่ยงปัญหา CORS preflight ที่ Apps Script ไม่รองรับ
+        async function apiPost(payload) {
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(payload)
+            });
+            return res.json();
+        }
+
+        // ดึงข้อมูลสินค้าล่าสุดจาก Google Sheet มาแทนที่ตัวแปร products
+        async function loadProductsFromServer() {
+            if (!API_URL || API_URL.indexOf('http') !== 0) {
+                console.warn('ยังไม่ได้ตั้งค่า API_URL — ใช้ข้อมูลตัวอย่างไปพลางก่อน');
+                return;
+            }
+            try {
+                const data = await apiGet('getProducts');
+                if (data.ok) {
+                    products = data.products.map(p => ({ ...p, id: Number(p.id) }));
+                } else {
+                    showToast('โหลดข้อมูลจาก Google Sheet ไม่สำเร็จ', 'error');
+                }
+            } catch (err) {
+                showToast('เชื่อมต่อ Google Sheet ไม่สำเร็จ ใช้ข้อมูลตัวอย่างแทน', 'error');
+            }
+        }
+        // สร้างรูป placeholder เป็น SVG ฝังในโค้ดโดยตรง (data URI) ไม่ต้องโหลดจากอินเทอร์เน็ต
+        // ใช้แทนรูปตัวอย่าง และเป็นรูปสำรองเมื่อรูปจริงโหลดไม่ขึ้น
+        function svgPlaceholder(emoji, bgHex) {
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400">`
+                + `<rect width="600" height="400" fill="${bgHex}"/>`
+                + `<text x="50%" y="50%" font-size="130" text-anchor="middle" dominant-baseline="central">${emoji}</text>`
+                + `</svg>`;
+            return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+        }
+        // ใช้เป็นรูปสำรองทั่วไปเมื่อ <img> ตัวไหนก็ตามโหลดรูปไม่ขึ้น
+        function localImgFallback() {
+            return svgPlaceholder('🎁', '#FFF0EC');
+        }
+
+        // ข้อมูลตัวอย่าง (ใช้ชั่วคราวถ้ายังไม่ได้ตั้งค่า API_URL หรือเชื่อมต่อ Google Sheet ไม่สำเร็จ)
+        let products = [
+            {
+                id: 1,
+                title: "พวงกุญแจไหมพรมถัก น้องหมีนุ่มฟู 🐻",
+                category: "งานถักไหมพรม",
+                price: 49,
+                seller: "น้องพลอย (ม.4/2)",
+                desc: "พวงกุญแจถักมือไหมพรมเกรดนุ่มพิเศษ เลือกสีหมีและหมวกได้ตามสั่ง ทำเองชิ้นต่อชิ้น ใช้เวลาทำ 1-2 วันครับ",
+                img: svgPlaceholder('🧸', '#FFE8DC'),
+                refUrl: "https://instagram.com",
+                contact: "Line ID: ploy_crochet",
+                status: "approved",
+                createdAt: "2026-09-10"
+            },
+            {
+                id: 2,
+                title: "สายคล้องแมส/สร้อยคอ ลูกปัดพาสเทล ✨",
+                category: "เครื่องประดับลูกปัด",
+                price: 35,
+                seller: "มายด์ & เจน (ม.2/1)",
+                desc: "สายคล้องลูกปัดน้ำหนักเบา ตกแต่งด้วยจี้ผีเสื้อพาสเทล ความยาว 60 ซม. เลือกร้อยชื่อภาษาอังกฤษเพิ่มได้ฟรี!",
+                img: svgPlaceholder('📿', '#FFE3EC'),
+                refUrl: "https://tiktok.com",
+                contact: "เบอร์โทร: 081-234-5678 (มายด์)",
+                status: "approved",
+                createdAt: "2026-09-11"
+            },
+            {
+                id: 3,
+                title: "กระเป๋าผ้าดิบเพ้นท์ ลายการ์ตูนมินิมอล 🎨",
+                category: "งานเพ้นท์และวาด",
+                price: 120,
+                seller: "พี่ตั้ม (ม.6/3 ชมรมศิลปะ)",
+                desc: "กระเป๋าผ้าลดโลกร้อนใช้สีเพ้นท์ผ้ากันน้ำ ซักได้สีไม่ตก ลายวาดสดเฉพาะชิ้น ไม่ซ้ำใครแน่นอน",
+                img: svgPlaceholder('🎨', '#FFF3D6'),
+                refUrl: "",
+                contact: "IG: tum_artcraft",
+                status: "approved",
+                createdAt: "2026-09-11"
+            },
+            {
+                id: 4,
+                title: "สมุดไดอารี่ทำมือ ตกแต่งดอกไม้แห้ง 🌸",
+                category: "สมุดและงานกระดาษ",
+                price: 89,
+                seller: "กิ๊ฟท์ (ม.5/1)",
+                desc: "สมุดทำมือเข้าเล่มด้วยเชือกปานัม ปกกระดาษถนอมสายตา ตกแต่งด้วยดอกทับทิมแห้งแท้ กลิ่นหอมธรรมชาติ",
+                img: svgPlaceholder('📔', '#F1E6FF'),
+                refUrl: "https://shopee.co.th",
+                contact: "Line ID: gift_craftbook",
+                status: "pending",
+                createdAt: "2026-09-11"
+            }
+        ];
 
         const categories = ["ทั้งหมด", "งานถักไหมพรม", "เครื่องประดับลูกปัด", "งานเพ้นท์และวาด", "สมุดและงานกระดาษ", "ขนมโฮมเมด", "อื่นๆ"];
         let activeCategory = "ทั้งหมด";
         let isAdminLoggedIn = false;
         let selectedImageDataUrl = '';
 
-        // ดึงข้อมูลสินค้าทั้งหมดจาก Google Sheet
-        async function loadProducts() {
-            try {
-                const res = await fetch(API_URL);
-                const data = await res.json();
-                products = data.map(p => ({
-                    ...p,
-                    id: String(p.id),
-                    price: Number(p.price)
-                }));
-            } catch (err) {
-                console.error('โหลดข้อมูลสินค้าไม่สำเร็จ', err);
-                showToast('โหลดข้อมูลสินค้าจากฐานข้อมูลไม่สำเร็จ ตรวจสอบ API_URL', 'error');
-            }
-            renderCategories();
-            renderProducts();
-            updateStats();
+        // ป้องกัน XSS: แปลงอักขระพิเศษก่อนแสดงข้อมูลที่ผู้ใช้กรอกเองบนหน้าเว็บ
+        function escapeHtml(str) {
+            if (str === undefined || str === null) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
         }
+
+        // เก็บ username/password ของ Admin ไว้ในหน่วยความจำหลังล็อกอินสำเร็จ
+        // เพื่อใช้แนบไปกับคำขอที่ต้องยืนยันตัวตน (อนุมัติ/ลบ/โพสต์แบบอนุมัติทันที)
+        let adminCreds = { username: '', password: '' };
 
         function previewSelectedImage(event) {
             const file = event.target.files[0];
@@ -429,8 +530,11 @@
         }
 
         // Initialize App
-        window.onload = () => {
-            loadProducts();
+        window.onload = async () => {
+            await loadProductsFromServer();
+            renderCategories();
+            renderProducts();
+            updateStats();
         };
 
         // Render Category Filter Buttons
@@ -454,12 +558,6 @@
             activeCategory = cat;
             renderCategories();
             renderProducts();
-        }
-
-        function switchView(view) {
-            if (view === 'feed') {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            }
         }
 
         // Render Product Cards
@@ -499,11 +597,11 @@
                         <div>
                             <!-- Image Container -->
                             <div class="relative h-48 w-full overflow-hidden bg-slate-100">
-                                <img src="${p.img}" alt="${p.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onerror="this.src='https://placehold.co/600x400/fff0ec/ff7e5f?text=Handmade+Craft'">
+                                <img src="${escapeHtml(p.img)}" alt="${escapeHtml(p.title)}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onerror="this.onerror=null;this.src=localImgFallback()">
                                 
                                 <!-- Category Badge -->
                                 <span class="absolute top-3 left-3 bg-white/90 backdrop-blur-md text-orange-600 text-[11px] font-bold px-3 py-1 rounded-full shadow-sm">
-                                    ${p.category}
+                                    ${escapeHtml(p.category)}
                                 </span>
 
                                 <!-- Ref Link Icon Badge if available -->
@@ -525,13 +623,13 @@
                             <!-- Body Detail -->
                             <div class="p-5">
                                 <div class="flex justify-between items-start gap-2 mb-2">
-                                    <h3 class="font-bold text-slate-800 text-base line-clamp-1 group-hover:text-orange-500 transition-colors">${p.title}</h3>
+                                    <h3 class="font-bold text-slate-800 text-base line-clamp-1 group-hover:text-orange-500 transition-colors">${escapeHtml(p.title)}</h3>
                                 </div>
-                                <p class="text-xs text-slate-500 line-clamp-2 mb-4 font-light">${p.desc}</p>
+                                <p class="text-xs text-slate-500 line-clamp-2 mb-4 font-light">${escapeHtml(p.desc)}</p>
                                 
                                 <div class="flex items-center gap-2 text-xs text-slate-600 font-medium bg-orange-50/60 p-2 rounded-xl mb-3">
                                     <i class="fa-solid fa-graduation-cap text-orange-400"></i>
-                                    <span>${p.seller}</span>
+                                    <span>${escapeHtml(p.seller)}</span>
                                 </div>
                             </div>
                         </div>
@@ -543,7 +641,7 @@
                                 <span class="text-xl font-extrabold text-pink-600">฿${p.price}</span>
                             </div>
 
-                            <button onclick="openProductDetailModal('${p.id}')" class="bg-orange-100 hover:bg-orange-500 hover:text-white text-orange-600 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1">
+                            <button onclick="openProductDetailModal(${p.id})" class="bg-orange-100 hover:bg-orange-500 hover:text-white text-orange-600 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1">
                                 <span>ดูรายละเอียด</span>
                                 <i class="fa-solid fa-chevron-right text-[10px]"></i>
                             </button>
@@ -571,24 +669,28 @@
             document.getElementById('adminPass').value = 'admin123';
         }
 
-        function handleAdminLogin(e) {
+        async function handleAdminLogin(e) {
             e.preventDefault();
             const user = document.getElementById('adminUser').value;
             const pass = document.getElementById('adminPass').value;
 
-            if (user === 'admin' && pass === 'admin123') {
+            const result = await apiPost({ action: 'adminLogin', username: user, password: pass });
+
+            if (result.ok) {
                 isAdminLoggedIn = true;
+                adminCreds = { username: user, password: pass };
                 closeAdminLoginModal();
                 showToast('เข้าสู่ระบบผู้ดูแลระบบสำเร็จ!', 'success');
                 updateAdminUI();
                 renderProducts();
             } else {
-                showToast('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', 'error');
+                showToast(result.error || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', 'error');
             }
         }
 
         function logoutAdmin() {
             isAdminLoggedIn = false;
+            adminCreds = { username: '', password: '' };
             showToast('ออกจากระบบ Admin เรียบร้อย', 'info');
             updateAdminUI();
             renderProducts();
@@ -637,13 +739,13 @@
                 return `
                     <tr class="border-b border-slate-50 hover:bg-slate-50/80 text-sm">
                         <td class="p-3 flex items-center gap-3">
-                            <img src="${p.img}" class="w-10 h-10 rounded-xl object-cover" onerror="this.src='https://placehold.co/100x100'">
+                            <img src="${escapeHtml(p.img)}" class="w-10 h-10 rounded-xl object-cover" onerror="this.onerror=null;this.src=localImgFallback()">
                             <div>
-                                <span class="font-bold text-slate-800 block">${p.title}</span>
-                                <span class="text-[11px] text-slate-400">${p.category}</span>
+                                <span class="font-bold text-slate-800 block">${escapeHtml(p.title)}</span>
+                                <span class="text-[11px] text-slate-400">${escapeHtml(p.category)}</span>
                             </div>
                         </td>
-                        <td class="p-3 font-medium text-slate-600">${p.seller}</td>
+                        <td class="p-3 font-medium text-slate-600">${escapeHtml(p.seller)}</td>
                         <td class="p-3 font-bold text-pink-600">฿${p.price}</td>
                         <td class="p-3">
                             <span class="px-2.5 py-1 rounded-full text-xs font-bold ${isApproved ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}">
@@ -652,11 +754,11 @@
                         </td>
                         <td class="p-3 text-right space-x-1">
                             ${!isApproved ? `
-                                <button onclick="approveProduct('${p.id}')" class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-xl text-xs font-semibold shadow-sm">
+                                <button onclick="approveProduct(${p.id})" class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-xl text-xs font-semibold shadow-sm">
                                     <i class="fa-solid fa-check mr-1"></i>อนุมัติ
                                 </button>
                             ` : ''}
-                            <button onclick="deleteProduct('${p.id}')" class="bg-red-50 hover:bg-red-100 text-red-500 px-3 py-1.5 rounded-xl text-xs font-semibold transition">
+                            <button onclick="deleteProduct(${p.id})" class="bg-red-50 hover:bg-red-100 text-red-500 px-3 py-1.5 rounded-xl text-xs font-semibold transition">
                                 <i class="fa-solid fa-trash-can"></i>
                             </button>
                         </td>
@@ -665,34 +767,38 @@
             }).join('');
         }
 
-        // แจ้งขออนุมัติสินค้าไปที่ Google Sheet
         async function approveProduct(id) {
-            try {
-                await fetch(API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify({ action: 'approve', id: id })
-                });
-                showToast('อนุมัติสินค้าเรียบร้อยแล้ว', 'success');
-                await loadProducts();
-            } catch (err) {
-                showToast('อนุมัติไม่สำเร็จ ตรวจสอบการเชื่อมต่อ', 'error');
+            const result = await apiPost({
+                action: 'approveProduct',
+                id: id,
+                username: adminCreds.username,
+                password: adminCreds.password
+            });
+
+            if (!result.ok) {
+                showToast(result.error || 'อนุมัติไม่สำเร็จ', 'error');
+                return;
             }
+            showToast('อนุมัติสินค้าเรียบร้อยแล้ว', 'success');
+            await loadProductsFromServer();
+            renderProducts();
         }
 
-        // ลบสินค้าออกจาก Google Sheet
         async function deleteProduct(id) {
-            try {
-                await fetch(API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify({ action: 'delete', id: id })
-                });
-                showToast('ลบรายการเรียบร้อยแล้ว', 'info');
-                await loadProducts();
-            } catch (err) {
-                showToast('ลบไม่สำเร็จ ตรวจสอบการเชื่อมต่อ', 'error');
+            const result = await apiPost({
+                action: 'deleteProduct',
+                id: id,
+                username: adminCreds.username,
+                password: adminCreds.password
+            });
+
+            if (!result.ok) {
+                showToast(result.error || 'ลบไม่สำเร็จ', 'error');
+                return;
             }
+            showToast('ลบรายการเรียบร้อยแล้ว', 'info');
+            await loadProductsFromServer();
+            renderProducts();
         }
 
         // Student Add Product Handling
@@ -707,45 +813,49 @@
             if (container) container.classList.add('hidden');
         }
 
-        // ส่งสินค้าใหม่ไปบันทึกที่ Google Sheet
         async function handleAddProduct(e) {
             e.preventDefault();
 
+            const priceValue = parseFloat(document.getElementById('prodPrice').value);
+            if (isNaN(priceValue) || priceValue < 0) {
+                showToast('กรุณากรอกราคาเป็นตัวเลขให้ถูกต้อง', 'error');
+                return;
+            }
+
             const newProduct = {
-                id: Date.now(),
                 title: document.getElementById('prodTitle').value,
                 category: document.getElementById('prodCategory').value,
-                price: parseFloat(document.getElementById('prodPrice').value),
+                price: priceValue,
                 seller: document.getElementById('prodSeller').value,
                 desc: document.getElementById('prodDesc').value || 'ไม่มีรายละเอียดเพิ่มเติม',
-                img: selectedImageDataUrl || 'https://placehold.co/600x400/fff0ec/ff7e5f?text=Handmade+Craft',
+                img: selectedImageDataUrl || localImgFallback(),
                 refUrl: document.getElementById('prodRefUrl').value,
-                contact: document.getElementById('prodContact').value,
-                status: isAdminLoggedIn ? 'approved' : 'pending', // Auto approve if admin posted
-                createdAt: new Date().toISOString().split('T')[0]
+                contact: document.getElementById('prodContact').value
             };
 
-            try {
-                await fetch(API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify({ action: 'add', product: newProduct })
-                });
+            const result = await apiPost({
+                action: 'addProduct',
+                product: newProduct,
+                username: adminCreds.username,
+                password: adminCreds.password
+            });
 
-                closeAddProductModal();
-                e.target.reset();
-                selectedImageDataUrl = '';
-
-                if (isAdminLoggedIn) {
-                    showToast('โพสต์ลงขายสำเร็จแล้ว!', 'success');
-                } else {
-                    showToast('ส่งโพสต์เรียบร้อย! อยู่ระหว่างการรอ Admin ตรวจสอบ', 'info');
-                }
-
-                await loadProducts();
-            } catch (err) {
-                showToast('เกิดข้อผิดพลาด ไม่สามารถบันทึกสินค้าได้', 'error');
+            if (!result.ok) {
+                showToast(result.error || 'บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง', 'error');
+                return;
             }
+
+            closeAddProductModal();
+            e.target.reset();
+
+            if (result.status === 'approved') {
+                showToast('โพสต์ลงขายสำเร็จแล้ว!', 'success');
+            } else {
+                showToast('ส่งโพสต์เรียบร้อย! อยู่ระหว่างการรอ Admin ตรวจสอบ', 'info');
+            }
+
+            await loadProductsFromServer();
+            renderProducts();
         }
 
         // View Product Details
@@ -760,7 +870,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <!-- Image -->
                     <div class="rounded-2xl overflow-hidden bg-slate-100 h-64 md:h-full">
-                        <img src="${p.img}" alt="${p.title}" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/600x400'">
+                        <img src="${escapeHtml(p.img)}" alt="${escapeHtml(p.title)}" class="w-full h-full object-cover" onerror="this.onerror=null;this.src=localImgFallback()">
                     </div>
 
                     <!-- Details -->
@@ -768,28 +878,28 @@
                         <div>
                             <div class="flex items-center gap-2 mb-2">
                                 <span class="bg-orange-100 text-orange-600 text-xs font-bold px-3 py-1 rounded-full">
-                                    ${p.category}
+                                    ${escapeHtml(p.category)}
                                 </span>
-                                <span class="text-xs text-slate-400">โพสต์เมื่อ ${p.createdAt}</span>
+                                <span class="text-xs text-slate-400">โพสต์เมื่อ ${escapeHtml(p.createdAt)}</span>
                             </div>
 
-                            <h2 class="text-2xl font-bold text-slate-800 mb-2">${p.title}</h2>
+                            <h2 class="text-2xl font-bold text-slate-800 mb-2">${escapeHtml(p.title)}</h2>
                             <p class="text-3xl font-extrabold text-pink-600 mb-4">฿${p.price}</p>
 
                             <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 mb-4">
                                 <p class="text-xs font-semibold text-slate-400 mb-1 uppercase">รายละเอียดสินค้า</p>
-                                <p class="text-sm text-slate-700 font-light leading-relaxed">${p.desc}</p>
+                                <p class="text-sm text-slate-700 font-light leading-relaxed">${escapeHtml(p.desc)}</p>
                             </div>
 
                             <!-- Seller Info -->
                             <div class="space-y-2 mb-4">
                                 <div class="flex items-center gap-2 text-sm text-slate-700">
                                     <i class="fa-solid fa-user-circle text-orange-400 text-lg"></i>
-                                    <span>ผู้ขาย: <strong>${p.seller}</strong></span>
+                                    <span>ผู้ขาย: <strong>${escapeHtml(p.seller)}</strong></span>
                                 </div>
                                 <div class="flex items-center gap-2 text-sm text-slate-700">
                                     <i class="fa-solid fa-comment-dots text-pink-400 text-lg"></i>
-                                    <span>ติดต่อ: <strong>${p.contact}</strong></span>
+                                    <span>ติดต่อ: <strong>${escapeHtml(p.contact)}</strong></span>
                                 </div>
                             </div>
 
@@ -799,7 +909,7 @@
                                     <p class="text-xs font-bold text-pink-700 mb-1 flex items-center gap-1">
                                         <i class="fa-solid fa-arrow-up-right-from-square"></i> โพสต์ขายเดิมจากภายนอก
                                     </p>
-                                    <a href="${p.refUrl}" target="_blank" class="inline-flex items-center gap-2 bg-white hover:bg-pink-50 text-pink-600 font-semibold text-xs px-3 py-2 rounded-xl border border-pink-200 shadow-sm transition">
+                                    <a href="${escapeHtml(p.refUrl)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 bg-white hover:bg-pink-50 text-pink-600 font-semibold text-xs px-3 py-2 rounded-xl border border-pink-200 shadow-sm transition">
                                         <i class="fa-solid fa-globe"></i> เปิดดูโพสต์เดิมของผู้ขาย
                                     </a>
                                 </div>
@@ -808,7 +918,7 @@
 
                         <!-- Contact CTA -->
                         <div class="pt-4 border-t border-slate-100">
-                            <button onclick="copyContact('${p.contact}')" class="w-full bg-gradient-brand text-white py-3 rounded-xl font-bold shadow-md hover:opacity-95 transition flex items-center justify-center gap-2">
+                            <button onclick='copyContact(${JSON.stringify(p.contact)})' class="w-full bg-gradient-brand text-white py-3 rounded-xl font-bold shadow-md hover:opacity-95 transition flex items-center justify-center gap-2">
                                 <i class="fa-solid fa-copy"></i> คัดลอกข้อมูลติดต่อผู้ขาย
                             </button>
                         </div>
@@ -824,11 +934,29 @@
         }
 
         function copyContact(text) {
-            navigator.clipboard.writeText(text).then(() => {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text)
+                    .then(() => showToast('คัดลอกช่องทางติดต่อแล้ว!', 'success'))
+                    .catch(() => copyContactFallback(text));
+            } else {
+                copyContactFallback(text);
+            }
+        }
+
+        function copyContactFallback(text) {
+            const dummy = document.createElement('textarea');
+            dummy.value = text;
+            dummy.style.position = 'fixed';
+            dummy.style.opacity = '0';
+            document.body.appendChild(dummy);
+            dummy.select();
+            try {
+                document.execCommand('copy');
                 showToast('คัดลอกช่องทางติดต่อแล้ว!', 'success');
-            }).catch(() => {
-                showToast('คัดลอกไม่สำเร็จ', 'error');
-            });
+            } catch (err) {
+                showToast('คัดลอกไม่สำเร็จ ลองคัดลอกด้วยตนเอง', 'error');
+            }
+            document.body.removeChild(dummy);
         }
 
         // Custom Toast Notification System (replaces standard alert)
